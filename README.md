@@ -75,7 +75,7 @@ Bug reports and feature requests are welcome on the [issue tracker](https://gith
 
 ## License
 
-GeoCalc is released under the GNU General Public License v2 or later. See the [LICENSE](LICENSE) file for details.
+GeoCalc is released under the GNU General Public License v3. See the [LICENSE](LICENSE) file for details.
 
 ## Author
 
