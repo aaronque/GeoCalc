@@ -1,0 +1,26 @@
+[general]
+name=GeoCalc
+qgisMinimumVersion=3.22
+qgisMaximumVersion=4.99
+description=One-click geometric calculations: polygon area, line length, and point coordinates, with configurable units. Works with selected layers.
+version=0.1.0
+author=Aarón Quesada (ISLAYA Consultoría Ambiental)
+email=quesada.garcia.aaron@gmail.com
+about=Adds a single toolbar button that, when clicked, processes all selected layers in the layer tree and adds (or updates) a geometry field according to the layer type: area for polygons, length for lines, and X/Y coordinates for points. Units are configurable from the plugin Settings dialog (m², ha, km², ft², ac, mi² for areas; m, km, ft, yd, mi for lengths). Calculations use the project's ellipsoid for accurate results regardless of the layer CRS. Read-only layers are silently skipped.
+tracker=https://github.com/aaronque/GeoCalc/issues
+repository=https://github.com/aaronque/GeoCalc
+homepage=https://github.com/aaronque/GeoCalc
+category=Vector
+icon=icon.png
+experimental=False
+deprecated=False
+tags=area,length,coordinates,geometry,hectares,kilometers,calculator,vector
+
+changelog=0.1.0
+    - Initial release
+    - Single-button workflow: detects geometry type per layer
+    - Polygon area calculation with configurable units (m2, ha, km2, ft2, ac, mi2)
+    - Line length calculation with configurable units (m, km, ft, yd, mi)
+    - Point coordinate extraction (X, Y) in the layer CRS
+    - Ellipsoidal calculations for areas and lengths
+    - Settings persisted across sessions
