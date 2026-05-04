@@ -6,7 +6,6 @@ performs ellipsoidal measurements via QgsDistanceArea, and writes the result
 to a new (or overwritten) field on the layer.
 """
 
-from qgis.PyQt.QtCore import QMetaType
 from qgis.core import (
     QgsField, QgsWkbTypes, QgsDistanceArea, QgsProject,
     QgsVectorDataProvider,
@@ -14,6 +13,35 @@ from qgis.core import (
 
 from .units import AREA_UNITS, LENGTH_UNITS, coord_field_names
 
+
+# ─────────────────────────────────────────────
+# Qt5 / Qt6 COMPATIBILITY
+# ─────────────────────────────────────────────
+
+def _make_double_field(name):
+    """
+    Create a QgsField of double precision in a way that works on both
+    Qt5 (QGIS 3.x) and Qt6 (QGIS 4.x).
+
+    Qt5 expects QVariant.Double; Qt6 expects QMetaType.Double.
+    We try the new API first and fall back to the old one.
+    """
+    try:
+        from qgis.PyQt.QtCore import QMetaType
+        field = QgsField(name, QMetaType.Type.Double)
+    except (ImportError, AttributeError, TypeError):
+        from qgis.PyQt.QtCore import QVariant
+        field = QgsField(name, QVariant.Double)
+
+    field.setTypeName("double precision")  # important for PostGIS
+    field.setLength(20)
+    field.setPrecision(6)
+    return field
+
+
+# ─────────────────────────────────────────────
+# CALCULATOR CLASS
+# ─────────────────────────────────────────────
 
 class Calculator:
     """
@@ -75,9 +103,11 @@ class Calculator:
         if not layer or not layer.dataProvider():
             return False
         caps = layer.dataProvider().capabilities()
-        needed = (QgsVectorDataProvider.AddAttributes
-                  | QgsVectorDataProvider.ChangeAttributeValues
-                  | QgsVectorDataProvider.DeleteAttributes)
+        needed = (
+            QgsVectorDataProvider.AddAttributes |
+            QgsVectorDataProvider.ChangeAttributeValues |
+            QgsVectorDataProvider.DeleteAttributes
+        )
         return bool(caps & needed)
 
     # ─────────────────────────────────────
@@ -205,11 +235,8 @@ class Calculator:
             prov.deleteAttributes([idx])
             layer.updateFields()
 
-        # Create the field
-        field = QgsField(field_name, QMetaType.Double)
-        field.setTypeName("double precision")  # important for PostGIS
-        field.setLength(20)
-        field.setPrecision(6)
+        # Create the field (Qt5/Qt6 compatible)
+        field = _make_double_field(field_name)
 
         if not prov.addAttributes([field]):
             return None
