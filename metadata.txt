@@ -3,10 +3,10 @@ name=GeoCalc
 qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 description=One-click geometric calculations: polygon area, line length, and point coordinates, with configurable units. Works with selected layers.
-version=0.1.1
-author=Aarón Quesada (ISLAYA Consultoría Ambiental)
+version=0.1.2
+author=Aarón Quesada - ISLAYA Consultoría Ambiental
 email=quesada.garcia.aaron@gmail.com
-about=Adds a single toolbar button that, when clicked, processes all selected layers in the layer tree and adds (or updates) a geometry field according to the layer type: area for polygons, length for lines, and X/Y coordinates for points. Units are configurable from the plugin Settings dialog (m², ha, km², ft², ac, mi² for areas; m, km, ft, yd, mi for lengths). Calculations use the project's ellipsoid for accurate results regardless of the layer CRS. Read-only layers are silently skipped.
+about=Adds a single toolbar button that, when clicked, processes all selected layers in the layer tree and adds (or overwrites) a geometry field according to the layer type: area for polygons, length for lines, and X/Y coordinates for points. Units and output precision are configurable from the plugin Settings dialog (m², ha, km², ft², ac, mi² for areas; m, km, ft, yd, mi for lengths). Calculations use the project's ellipsoid for accurate results regardless of the layer CRS. Read-only layers are silently skipped. If a target field already exists, its values are overwritten in place.
 tracker=https://github.com/aaronque/GeoCalc/issues
 repository=https://github.com/aaronque/GeoCalc
 homepage=https://github.com/aaronque/GeoCalc
@@ -16,8 +16,14 @@ experimental=False
 deprecated=False
 tags=area,length,coordinates,geometry,hectares,kilometers,calculator,vector
 
-changelog=0.1.1
-    - Fixed QgsField creation to be compatible with both Qt5 (QGIS 3.x) and Qt6 (QGIS 4.x)
+changelog=0.1.2
+    - Existing target fields are now reused and overwritten in place
+      (fixes the bug where layers with a pre-existing area_ha / length_km
+      field ended up with empty area_ha_1, length_km_1 fields)
+    - Added a configurable number of decimals in Settings (default: 2)
+ 0.1.1
+    - Fixed QgsField creation to be compatible with both Qt5 (QGIS 3.x)
+      and Qt6 (QGIS 4.x)
  0.1.0
     - Initial release
     - Single-button workflow: detects geometry type per layer

@@ -9,7 +9,8 @@ in the layer tree, dispatching by geometry type:
     Line    → length (configurable unit)
     Point   → X, Y coordinates in layer CRS
 
-Read-only layers are silently skipped.
+Read-only layers are silently skipped. If a target field already exists, its
+values are overwritten in place.
 """
 
 import os
@@ -20,7 +21,7 @@ from qgis.PyQt.QtWidgets import QAction
 
 from .calculator import Calculator
 from .settings_dialog import (
-    SettingsDialog, get_area_unit, get_length_unit,
+    SettingsDialog, get_area_unit, get_length_unit, get_decimals,
 )
 
 
@@ -102,6 +103,7 @@ class GeoCalcPlugin:
             calc = Calculator(
                 area_unit=get_area_unit(),
                 length_unit=get_length_unit(),
+                decimals=get_decimals(),
                 log_callback=self._log,
             )
             calc.process_layers(layers)

@@ -1,14 +1,14 @@
 """
 Settings dialog for GeoCalc.
 
-Lets the user pick units for area and length calculations. Coordinate field
-names are derived automatically from the layer CRS, so they are shown as
-read-only information.
+Lets the user pick units for area and length calculations, plus the number
+of decimal places for the output values. Coordinate field names are derived
+automatically from the layer CRS, so they are shown as read-only information.
 """
 
 from qgis.PyQt.QtCore import QSettings
 from qgis.PyQt.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSpinBox,
     QGroupBox, QDialogButtonBox, QPushButton,
 )
 
@@ -19,18 +19,29 @@ from .units import (
 
 
 SETTINGS_GROUP = "GeoCalc"
+DECIMALS_DEFAULT = 2
+DECIMALS_MIN = 0
+DECIMALS_MAX = 10
 
+
+# ─────────────────────────────────────────────
+# SETTINGS GETTERS / SETTERS
+# ─────────────────────────────────────────────
 
 def get_area_unit():
-    """Return the currently configured area unit key."""
-    s = QSettings()
-    return s.value(f"{SETTINGS_GROUP}/area_unit", AREA_DEFAULT, type=str)
+    return QSettings().value(f"{SETTINGS_GROUP}/area_unit", AREA_DEFAULT, type=str)
 
 
 def get_length_unit():
-    """Return the currently configured length unit key."""
-    s = QSettings()
-    return s.value(f"{SETTINGS_GROUP}/length_unit", LENGTH_DEFAULT, type=str)
+    return QSettings().value(f"{SETTINGS_GROUP}/length_unit", LENGTH_DEFAULT, type=str)
+
+
+def get_decimals():
+    value = QSettings().value(
+        f"{SETTINGS_GROUP}/decimals", DECIMALS_DEFAULT, type=int
+    )
+    # Clamp into valid range, just in case
+    return max(DECIMALS_MIN, min(DECIMALS_MAX, value))
 
 
 def set_area_unit(key):
@@ -39,6 +50,10 @@ def set_area_unit(key):
 
 def set_length_unit(key):
     QSettings().setValue(f"{SETTINGS_GROUP}/length_unit", key)
+
+
+def set_decimals(value):
+    QSettings().setValue(f"{SETTINGS_GROUP}/decimals", int(value))
 
 
 # ─────────────────────────────────────────────
@@ -50,7 +65,7 @@ class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("GeoCalc Settings")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(440)
         self._build_ui()
         self._load_settings()
 
@@ -107,6 +122,17 @@ class SettingsDialog(QDialog):
         c_layout.addWidget(info)
         layout.addWidget(gb_coords)
 
+        # Decimals
+        gb_decimals = QGroupBox("Output precision")
+        d_layout = QHBoxLayout(gb_decimals)
+        d_layout.addWidget(QLabel("Number of decimals:"))
+        self.spin_decimals = QSpinBox()
+        self.spin_decimals.setRange(DECIMALS_MIN, DECIMALS_MAX)
+        self.spin_decimals.setSingleStep(1)
+        d_layout.addWidget(self.spin_decimals)
+        d_layout.addStretch()
+        layout.addWidget(gb_decimals)
+
         # Buttons
         bb = QDialogButtonBox()
         self.btn_reset = QPushButton("Reset defaults")
@@ -126,11 +152,13 @@ class SettingsDialog(QDialog):
     def _load_settings(self):
         self._select_combo(self.cmb_area, get_area_unit())
         self._select_combo(self.cmb_length, get_length_unit())
+        self.spin_decimals.setValue(get_decimals())
         self._update_field_previews()
 
     def _reset_defaults(self):
         self._select_combo(self.cmb_area, AREA_DEFAULT)
         self._select_combo(self.cmb_length, LENGTH_DEFAULT)
+        self.spin_decimals.setValue(DECIMALS_DEFAULT)
 
     @staticmethod
     def _select_combo(combo, key):
@@ -157,4 +185,5 @@ class SettingsDialog(QDialog):
     def accept(self):
         set_area_unit(self.cmb_area.currentData())
         set_length_unit(self.cmb_length.currentData())
+        set_decimals(self.spin_decimals.value())
         super().accept()

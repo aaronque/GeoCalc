@@ -3,7 +3,7 @@ Core calculation logic for GeoCalc.
 
 Routes each layer to the appropriate calculation based on its geometry type,
 performs ellipsoidal measurements via QgsDistanceArea, and writes the result
-to a new (or overwritten) field on the layer.
+to a new (or existing) field on the layer.
 """
 
 from qgis.core import (
@@ -18,13 +18,21 @@ from .units import AREA_UNITS, LENGTH_UNITS, coord_field_names
 # Qt5 / Qt6 COMPATIBILITY
 # ─────────────────────────────────────────────
 
-def _make_double_field(name):
+def _make_double_field(name, precision=2):
     """
     Create a QgsField of double precision in a way that works on both
     Qt5 (QGIS 3.x) and Qt6 (QGIS 4.x).
 
     Qt5 expects QVariant.Double; Qt6 expects QMetaType.Double.
     We try the new API first and fall back to the old one.
+
+    Parameters
+    ----------
+    name : str
+        Field name.
+    precision : int
+        Number of decimal places to declare on the field. This affects how
+        QGIS displays values (trailing zeros, attribute table formatting).
     """
     try:
         from qgis.PyQt.QtCore import QMetaType
@@ -35,7 +43,7 @@ def _make_double_field(name):
 
     field.setTypeName("double precision")  # important for PostGIS
     field.setLength(20)
-    field.setPrecision(6)
+    field.setPrecision(int(precision))
     return field
 
 
@@ -53,14 +61,18 @@ class Calculator:
         Key from AREA_UNITS (e.g. 'ha', 'm2').
     length_unit : str
         Key from LENGTH_UNITS (e.g. 'km', 'm').
+    decimals : int
+        Number of decimal places for rounding output values AND for the
+        precision of newly created fields.
     log_callback : callable, optional
         Function(message: str, level: str) called for each layer processed.
         level is one of 'info', 'success', 'warning', 'critical'.
     """
 
-    def __init__(self, area_unit, length_unit, log_callback=None):
+    def __init__(self, area_unit, length_unit, decimals=2, log_callback=None):
         self.area_unit = area_unit
         self.length_unit = length_unit
+        self.decimals = int(decimals)
         self.log = log_callback or (lambda msg, level='info': None)
 
         self.processed_count = 0
@@ -105,8 +117,7 @@ class Calculator:
         caps = layer.dataProvider().capabilities()
         needed = (
             QgsVectorDataProvider.AddAttributes |
-            QgsVectorDataProvider.ChangeAttributeValues |
-            QgsVectorDataProvider.DeleteAttributes
+            QgsVectorDataProvider.ChangeAttributeValues
         )
         return bool(caps & needed)
 
@@ -119,7 +130,7 @@ class Calculator:
         field_name = unit['field']
         factor = unit['factor']
 
-        idx = self._reset_field(layer, field_name)
+        idx = self._ensure_field(layer, field_name)
         if idx is None:
             return
 
@@ -131,7 +142,7 @@ class Calculator:
             if not geom or geom.isEmpty():
                 continue
             area_m2 = d.measureArea(geom)
-            value = round(area_m2 * factor, 4)
+            value = round(area_m2 * factor, self.decimals)
             values[feat.id()] = {idx: value}
 
         if values:
@@ -152,7 +163,7 @@ class Calculator:
         field_name = unit['field']
         factor = unit['factor']
 
-        idx = self._reset_field(layer, field_name)
+        idx = self._ensure_field(layer, field_name)
         if idx is None:
             return
 
@@ -164,7 +175,7 @@ class Calculator:
             if not geom or geom.isEmpty():
                 continue
             length_m = d.measureLength(geom)
-            value = round(length_m * factor, 4)
+            value = round(length_m * factor, self.decimals)
             values[feat.id()] = {idx: value}
 
         if values:
@@ -183,8 +194,8 @@ class Calculator:
     def _process_coordinates(self, layer):
         x_field, y_field = coord_field_names(layer.crs())
 
-        idx_x = self._reset_field(layer, x_field)
-        idx_y = self._reset_field(layer, y_field)
+        idx_x = self._ensure_field(layer, x_field)
+        idx_y = self._ensure_field(layer, y_field)
         if idx_x is None or idx_y is None:
             return
 
@@ -204,8 +215,8 @@ class Calculator:
                 pt = geom.asPoint()
 
             values[feat.id()] = {
-                idx_x: round(pt.x(), 6),
-                idx_y: round(pt.y(), 6),
+                idx_x: round(pt.x(), self.decimals),
+                idx_y: round(pt.y(), self.decimals),
             }
 
         if values:
@@ -221,23 +232,24 @@ class Calculator:
     # FIELD MANAGEMENT
     # ─────────────────────────────────────
 
-    @staticmethod
-    def _reset_field(layer, field_name):
+    def _ensure_field(self, layer, field_name):
         """
-        Drop the field if it exists, then create it as double precision.
-        Returns the new field index, or None on failure.
-        """
-        prov = layer.dataProvider()
+        Make sure the layer has a writable field with the given name.
 
-        # Drop existing field if present
+        - If the field already exists, return its index (it will be overwritten,
+          but its declared precision is left untouched).
+        - If it does not exist, create it as double precision with the
+          configured number of decimals and return the new index.
+        - Returns None if the field could not be created.
+        """
+        # If it already exists, reuse it
         idx = layer.fields().indexFromName(field_name)
         if idx != -1:
-            prov.deleteAttributes([idx])
-            layer.updateFields()
+            return idx
 
-        # Create the field (Qt5/Qt6 compatible)
-        field = _make_double_field(field_name)
-
+        # Otherwise create it with the configured precision
+        prov = layer.dataProvider()
+        field = _make_double_field(field_name, precision=self.decimals)
         if not prov.addAttributes([field]):
             return None
 
