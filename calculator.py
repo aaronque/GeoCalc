@@ -25,14 +25,6 @@ def _make_double_field(name, precision=2):
 
     Qt5 expects QVariant.Double; Qt6 expects QMetaType.Double.
     We try the new API first and fall back to the old one.
-
-    Parameters
-    ----------
-    name : str
-        Field name.
-    precision : int
-        Number of decimal places to declare on the field. This affects how
-        QGIS displays values (trailing zeros, attribute table formatting).
     """
     try:
         from qgis.PyQt.QtCore import QMetaType
@@ -45,6 +37,26 @@ def _make_double_field(name, precision=2):
     field.setLength(20)
     field.setPrecision(int(precision))
     return field
+
+
+def _find_field_index_case_insensitive(layer, target_name):
+    """
+    Find a field by name, ignoring case.
+
+    Returns the field index, or -1 if not found.
+
+    This handles the common case where a field already exists with a
+    different capitalization (e.g. 'AREA_HA' from older plugins, while
+    GeoCalc uses 'area_ha'). Without this, the plugin would try to create
+    a new field, which OGR-based providers (Shapefile, GeoPackage) reject
+    because filenames/columns are case-insensitive — silently leaving the
+    layer with the original field plus an empty 'area_ha_1' fallback.
+    """
+    target_lower = target_name.lower()
+    for i, field in enumerate(layer.fields()):
+        if field.name().lower() == target_lower:
+            return i
+    return -1
 
 
 # ─────────────────────────────────────────────
@@ -234,16 +246,17 @@ class Calculator:
 
     def _ensure_field(self, layer, field_name):
         """
-        Make sure the layer has a writable field with the given name.
+        Make sure the layer has a writable field matching the given name
+        (case-insensitive).
 
-        - If the field already exists, return its index (it will be overwritten,
-          but its declared precision is left untouched).
+        - If a field with the same name (any capitalization) already exists,
+          return its index. Its values will be overwritten in place.
         - If it does not exist, create it as double precision with the
           configured number of decimals and return the new index.
         - Returns None if the field could not be created.
         """
-        # If it already exists, reuse it
-        idx = layer.fields().indexFromName(field_name)
+        # Case-insensitive lookup: matches 'AREA_HA', 'area_ha', 'Area_Ha', etc.
+        idx = _find_field_index_case_insensitive(layer, field_name)
         if idx != -1:
             return idx
 
@@ -254,7 +267,7 @@ class Calculator:
             return None
 
         layer.updateFields()
-        new_idx = layer.fields().indexFromName(field_name)
+        new_idx = _find_field_index_case_insensitive(layer, field_name)
         return new_idx if new_idx != -1 else None
 
     @staticmethod
